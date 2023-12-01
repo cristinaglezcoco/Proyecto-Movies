@@ -1,7 +1,11 @@
 const express = require('express');
 const router = express.Router();
+const fs = require('fs');
 
 const Cinema = require('../models/Cinema');
+const { isAuthenticated } = require('../middleware/auth.middleware');
+const {upload} = require('../middleware/file.middleware');
+const imageToUri = require('image-to-uri');
 
 router.get('/', async (req, res, next) => {
 	try {
@@ -12,15 +16,18 @@ router.get('/', async (req, res, next) => {
 	}
 });
 
-router.post('/', async (req, res, next) => {
+router.post('/', [isAuthenticated], upload.single('picture'), async (req, res, next) => {
     try{
+        const cinemaPicture = req.file.path ? req.file.path : null
         const newCinema = new Cinema({
             name: req.body.name,
             location: req.body.location,
-            movies: []
+            movies: [],
+            picture: imageToUri(cinemaPicture)
         });
 
         const createdCinema = await newCinema.save();
+        await fs.unlinkSync(cinemaPicture)
         return res.status(201).json(createdCinema);
     }
     catch(err){
@@ -28,7 +35,7 @@ router.post('/', async (req, res, next) => {
     }
 });
 
-router.delete('/deleteById/:id', async (req, res, next) => {
+router.delete('/deleteById/:id', [isAuthenticated], async (req, res, next) => {
     try{
         const id = req.params.id;
         const cinemaDeleted = await Cinema.findByIdAndDelete(id);
@@ -39,7 +46,7 @@ router.delete('/deleteById/:id', async (req, res, next) => {
     }
 });
 
-router.put('/add-movie', async (req, res, next) => {
+router.put('/add-movie', [isAuthenticated], async (req, res, next) => {
     try {
         const cinemaId = req.body.cinemaId; 
         const movieId = req.body.movieId;
@@ -56,7 +63,27 @@ router.put('/add-movie', async (req, res, next) => {
     }
 });
 
-router.put('/add-movie-by-genre', async (req, res, next) => { //añadir las películas a Cinema por género, 
+router.put('/updateById/:id', [isAuthenticated], async(req, res, next) => {
+    try {
+        const id = req.params.id;
+        const cinemaToModify = new Cinema(req.body);
+        cinemaToModify._id = id;
+        const cinemaUpdated = await Cinema.findByIdAndUpdate(id, cinemaToModify);
+        if (!cinemaUpdated) {
+            let error = new Error('Cine no encontrado');
+            error.status = 404;
+            throw error;
+        } else {
+            //res.status(200).json(characterUpdate);//envia version antigua
+            res.status(200).json(cinemaUpdated);//envia version modificada
+        }
+    } 
+    catch (err) {
+        next(err)
+    }
+})
+
+router.put('/add-movie-by-genre', [isAuthenticated], async (req, res, next) => { //añadir las películas a Cinema por género, 
     try {
         const cinemaId = req.body.cinemaId; 
         const genre = req.body.genre; //si pusiera name, te metería las películas por el nombre
@@ -72,7 +99,7 @@ router.put('/add-movie-by-genre', async (req, res, next) => { //añadir las pel�
     }
 });
 
-router.put('/add-movie-array', async (req, res, next) => {
+router.put('/add-movie-array', [isAuthenticated], async (req, res, next) => {
     try {
         const cinemaId = req.body.cinemaId; 
         const movieIdArray = req.body.movieIdArray;
@@ -91,7 +118,7 @@ router.put('/add-movie-array', async (req, res, next) => {
 
 
 
-router.delete('/delete-movie-array/:id', async (req, res, next) => { //borra la coleccion Cinema(puede ser)
+router.delete('/delete-movie-array/:id', [isAuthenticated], async (req, res, next) => { //borra la coleccion Cinema(puede ser)
     try {
         const cinemaId = req.body.cinemaId; 
         const movieIdArray = req.body.movieIdArray;

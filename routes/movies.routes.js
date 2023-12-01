@@ -1,6 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const Movie = require('../models/Movie');
+const {upload} = require('../middleware/file.middleware');
+const imageToUri = require('image-to-uri');
+const fs = require('fs');
+
+
 
 router.get('/', async (req, res, next) => {
     try {
@@ -70,16 +75,19 @@ router.get('/year/2010', async (req, res, next) => {
     }
 })
 
-router.post('/add-new', async (req, res, next) => {
+router.post('/add-new', upload.single('picture'), async (req, res, next) => {
     try {
+        const moviePicture = req.file.path ? req.file.path : null //tambien se puede poner req.file.path y coge la ruta del archivo en vez del nombre del archivo
         console.log(req.body)
         const newMovie = new Movie({
             title: req.body.title,
             director: req.body.director,
             year: req.body.year,
-            genre: req.body.genre
+            genre: req.body.genre,
+            picture: imageToUri(moviePicture)
         });
         const createdMovie = await newMovie.save();
+        await fs.unlinkSync(moviePicture)
 
         console.log(newMovie);
         res.status(201).json(createdMovie)
